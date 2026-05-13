@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SearchIndex {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  type      String
+  status    String   @default("active")
+  config    Json?
+  docCount  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([name])
+  @@map("search_indexes")
+}
+
+model IndexMapping {
+  id        String   @id @default(cuid())
+  indexId   String
+  fieldName String
+  fieldType String
+  analyzer  String?
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([indexId])
+  @@map("index_mappings")
+}
+
+model SearchQuery {
+  id        String   @id @default(cuid())
+  tenantId  String
+  query     String
+  results   Int
+  duration  Int
+  timestamp DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([timestamp])
+  @@map("search_queries")
+}
