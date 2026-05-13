@@ -1,0 +1,111 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  tenantId  String
+  code      String
+  name      String
+  description String?
+  head      String?
+  email     String?
+  courses   Course[]
+  programs  Program[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model Course {
+  id                String   @id @default(cuid())
+  tenantId          String
+  code              String
+  title             String
+  description       String?
+  credits           Int
+  level             String   @default("100")
+  departmentId      String
+  department        Department @relation(fields: [departmentId], references: [id])
+  status            String   @default("draft")
+  prerequisites     Prerequisite[] @relation("coursePrerequisites")
+  requiredFor       Prerequisite[] @relation("prerequisiteFor")
+  programCourses    ProgramCourse[]
+  publishedAt       DateTime?
+  deprecatedAt      DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([departmentId])
+}
+
+model Prerequisite {
+  courseId                String
+  course                  Course @relation("coursePrerequisites", fields: [courseId], references: [id])
+  prerequisiteCourseId    String
+  prerequisiteCourse      Course @relation("prerequisiteFor", fields: [prerequisiteCourseId], references: [id])
+  minimumGrade            String @default("C")
+
+  @@id([courseId, prerequisiteCourseId])
+  @@index([courseId])
+  @@index([prerequisiteCourseId])
+}
+
+model Program {
+  id                String   @id @default(cuid())
+  tenantId          String
+  code              String
+  name              String
+  description       String?
+  degree            String   @default("BACHELOR")
+  creditsRequired   Int      @default(120)
+  departmentId      String
+  department        Department @relation(fields: [departmentId], references: [id])
+  status            String   @default("draft")
+  requiredCourses   ProgramCourse[]
+  publishedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([departmentId])
+}
+
+model ProgramCourse {
+  id                String   @id @default(cuid())
+  programId         String
+  program           Program  @relation(fields: [programId], references: [id])
+  courseId          String
+  course            Course   @relation(fields: [courseId], references: [id])
+  sequenceNumber    Int
+  isElective        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  @@unique([programId, courseId])
+  @@index([programId])
+  @@index([courseId])
+}
+
+model CatalogVersion {
+  id                String   @id @default(cuid())
+  tenantId          String
+  academicYear      String
+  description       String?
+  status            String   @default("draft")
+  activatedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, academicYear])
+  @@index([tenantId])
+}
