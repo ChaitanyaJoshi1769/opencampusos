@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Connector {
+  id            String   @id @default(cuid())
+  tenantId      String
+  system        String
+  status        String   @default("configured")
+  config        Json?
+  lastSyncedAt  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  syncJobs      SyncJob[]
+
+  @@index([tenantId])
+  @@index([system])
+  @@map("connectors")
+}
+
+model SyncJob {
+  id                String   @id @default(cuid())
+  tenantId          String
+  connectorId       String
+  connector         Connector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+  entityType        String
+  status            String   @default("pending")
+  startedAt         DateTime?
+  completedAt       DateTime?
+  recordsProcessed  Int      @default(0)
+  recordsSucceeded  Int      @default(0)
+  recordsFailed     Int      @default(0)
+  error             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([connectorId])
+  @@index([status])
+  @@map("sync_jobs")
+}
+
+model IntegrationEvent {
+  id        String   @id @default(cuid())
+  tenantId  String
+  system    String
+  entityId  String
+  action    String
+  data      Json?
+  timestamp DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([system])
+  @@index([timestamp])
+  @@map("integration_events")
+}
