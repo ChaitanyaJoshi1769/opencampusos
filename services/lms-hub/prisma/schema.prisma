@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Course {
+  id            String   @id @default(cuid())
+  tenantId      String
+  code          String   @unique
+  title         String
+  description   String?
+  credits       Int
+  instructorId  String
+  capacity      Int
+  enrollmentCount Int   @default(0)
+  term          String
+  status        String   @default("draft") // draft, published, archived
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  enrollments   Enrollment[]
+  assignments   Assignment[]
+  content       Content[]
+
+  @@index([tenantId])
+  @@index([instructorId])
+  @@unique([tenantId, code])
+}
+
+model Enrollment {
+  id            String   @id @default(cuid())
+  tenantId      String
+  courseId      String
+  studentId     String
+  enrollmentDate DateTime @default(now())
+  status        String   @default("active") // active, dropped, completed
+  finalGrade    Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  course        Course   @relation(fields: [courseId], references: [id])
+  grades        Grade[]
+
+  @@index([tenantId])
+  @@index([courseId])
+  @@index([studentId])
+  @@unique([courseId, studentId])
+}
+
+model Content {
+  id            String   @id @default(cuid())
+  tenantId      String
+  courseId      String
+  title         String
+  description   String?
+  type          String   // lecture, assignment, reading, video, quiz, other
+  contentUrl    String
+  duration      Int?     // in seconds
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  course        Course   @relation(fields: [courseId], references: [id])
+
+  @@index([tenantId])
+  @@index([courseId])
+}
+
+model Assignment {
+  id            String   @id @default(cuid())
+  tenantId      String
+  courseId      String
+  title         String
+  description   String?
+  dueDate       DateTime
+  pointsPossible Int
+  weightage     Float?   @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  course        Course   @relation(fields: [courseId], references: [id])
+  grades        Grade[]
+
+  @@index([tenantId])
+  @@index([courseId])
+  @@index([dueDate])
+}
+
+model Grade {
+  id              String   @id @default(cuid())
+  tenantId        String
+  enrollmentId    String
+  assignmentId    String
+  pointsEarned    Int
+  feedback        String?
+  submittedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  enrollment      Enrollment @relation(fields: [enrollmentId], references: [id])
+  assignment      Assignment @relation(fields: [assignmentId], references: [id])
+
+  @@index([tenantId])
+  @@index([enrollmentId])
+  @@index([assignmentId])
+  @@unique([enrollmentId, assignmentId])
+}
