@@ -1,0 +1,92 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Budget {
+  id              String   @id @default(cuid())
+  tenantId        String
+  fiscalYear      String
+  department      String
+  title           String
+  description     String?
+  amount          Decimal  @db.Decimal(15, 2)
+  status          String   @default("draft")
+  expenses        Expense[]
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  rejectedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, fiscalYear, department])
+  @@index([tenantId])
+  @@index([fiscalYear])
+  @@index([department])
+}
+
+model Expense {
+  id              String   @id @default(cuid())
+  tenantId        String
+  budgetId        String
+  budget          Budget   @relation(fields: [budgetId], references: [id])
+  category        String
+  description     String
+  amount          Decimal  @db.Decimal(15, 2)
+  date            DateTime
+  status          String   @default("pending")
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([budgetId])
+  @@index([status])
+  @@index([date])
+}
+
+model ChartOfAccount {
+  id               String   @id @default(cuid())
+  tenantId         String
+  accountNumber    String
+  accountName      String
+  accountType      String
+  department       String?
+  balance          Decimal  @default(0) @db.Decimal(15, 2)
+  journalEntries   JournalEntry[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([tenantId, accountNumber])
+  @@index([tenantId])
+  @@index([accountType])
+  @@index([department])
+}
+
+model JournalEntry {
+  id              String   @id @default(cuid())
+  tenantId        String
+  accountId       String
+  account         ChartOfAccount @relation(fields: [accountId], references: [id])
+  date            DateTime
+  description     String
+  debitAmount     Decimal  @default(0) @db.Decimal(15, 2)
+  creditAmount    Decimal  @default(0) @db.Decimal(15, 2)
+  referenceNumber String?
+  status          String   @default("draft")
+  postedAt        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([accountId])
+  @@index([date])
+  @@index([status])
+}
