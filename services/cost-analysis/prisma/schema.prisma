@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  tenantId    String
+  departmentId String
+  year        Int
+  totalAmount Float
+  status      String   @default("draft")
+  approvedBy  String?
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([departmentId])
+  @@index([year])
+  @@map("budgets")
+}
+
+model Cost {
+  id          String   @id @default(cuid())
+  tenantId    String
+  departmentId String
+  category    String
+  description String?
+  amount      Float
+  vendor      String?
+  recordedAt  DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([departmentId])
+  @@index([category])
+  @@index([recordedAt])
+  @@map("costs")
+}
+
+model Forecast {
+  id          String   @id @default(cuid())
+  tenantId    String
+  departmentId String
+  month       String
+  predicted   Float
+  actual      Float?
+  confidence  Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([departmentId])
+  @@map("forecasts")
+}
+
+model BudgetAlert {
+  id        String   @id @default(cuid())
+  tenantId  String
+  budgetId  String
+  threshold Float
+  triggered Boolean  @default(false)
+  sentAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([budgetId])
+  @@map("budget_alerts")
+}
