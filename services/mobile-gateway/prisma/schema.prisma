@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model MobileSession {
+  id            String   @id @default(cuid())
+  tenantId      String
+  userId        String
+  deviceId      String
+  appVersion    String
+  lastActivity  DateTime
+  offlineMode   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([deviceId])
+  @@map("mobile_sessions")
+}
+
+model OfflineChange {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  deviceId  String
+  entity    String
+  action    String
+  data      Json
+  synced    Boolean  @default(false)
+  syncedAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([synced])
+  @@map("offline_changes")
+}
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  status    String
+  itemsSync Int      @default(0)
+  duration  Int
+  timestamp DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([timestamp])
+  @@map("sync_logs")
+}
