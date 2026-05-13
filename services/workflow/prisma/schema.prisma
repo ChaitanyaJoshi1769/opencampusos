@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workflow {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  type        String
+  description String?
+  status      String   @default("draft")
+  config      Json?
+  steps       WorkflowStep[]
+  instances   WorkflowInstance[]
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([type])
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  tenantId   String
+  name       String
+  type       String
+  order      Int
+  config     Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([workflowId])
+  @@index([tenantId])
+  @@map("workflow_steps")
+}
+
+model WorkflowInstance {
+  id            String   @id @default(cuid())
+  tenantId      String
+  workflowId    String
+  workflow      Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  status        String   @default("running")
+  context       Json?
+  currentStepId String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([workflowId])
+  @@index([status])
+  @@map("workflow_instances")
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  tenantId    String
+  title       String
+  description String?
+  status      String   @default("pending")
+  assignedTo  String?
+  dueDate     DateTime?
+  priority    String   @default("normal")
+  result      Json?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([assignedTo])
+  @@index([status])
+  @@map("tasks")
+}
+
+model ApprovalRequest {
+  id          String   @id @default(cuid())
+  tenantId    String
+  entityType  String
+  entityId    String
+  description String?
+  status      String   @default("pending")
+  approvals   Approval[]
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([entityType])
+  @@index([status])
+  @@map("approval_requests")
+}
+
+model Approval {
+  id                 String   @id @default(cuid())
+  approvalRequestId  String
+  approvalRequest    ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  approver           String
+  status             String
+  notes              String?
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([approvalRequestId])
+  @@index([approver])
+  @@map("approvals")
+}
