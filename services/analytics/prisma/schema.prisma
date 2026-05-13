@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Dashboard {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  description String?
+  widgets   Widget[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("dashboards")
+}
+
+model Widget {
+  id          String    @id @default(cuid())
+  dashboardId String
+  dashboard   Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  tenantId    String
+  type        String
+  title       String
+  config      Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([dashboardId])
+  @@index([tenantId])
+  @@map("widgets")
+}
+
+model Metric {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  value     Float
+  unit      String?
+  tags      String[]
+  timestamp DateTime @default(now())
+  metadata  Json?
+
+  @@index([tenantId])
+  @@index([name])
+  @@index([timestamp])
+  @@map("metrics")
+}
+
+model Kpi {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  category    String
+  targetValue Float
+  unit        String?
+  formula     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([category])
+  @@map("kpis")
+}
