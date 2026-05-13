@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  tenantId    String
+  type        String
+  source      String
+  payload     Json
+  status      String   @default("published")
+  deliveries  EventDelivery[]
+  publishedAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([type])
+  @@index([publishedAt])
+  @@map("events")
+}
+
+model Subscriber {
+  id          String   @id @default(cuid())
+  tenantId    String
+  eventType   String
+  endpoint    String
+  active      Boolean  @default(true)
+  deliveries  EventDelivery[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([eventType])
+  @@index([active])
+  @@map("subscribers")
+}
+
+model EventDelivery {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  subscriberId String
+  subscriber  Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  status      String   @default("pending")
+  attempts    Int      @default(0)
+  lastError   String?
+  deliveredAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([subscriberId])
+  @@index([status])
+  @@map("event_deliveries")
+}
