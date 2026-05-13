@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Resource {
+  id          String   @id @default(cuid())
+  tenantId    String
+  courseId    String?
+  title       String
+  description String?
+  type        String
+  status      String   @default("draft")
+  materials   Material[]
+  licenses    License[]
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([courseId])
+  @@index([status])
+  @@map("resources")
+}
+
+model Material {
+  id        String   @id @default(cuid())
+  tenantId  String
+  resourceId String
+  resource  Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  filename  String
+  fileType  String
+  fileSize  Int
+  fileUrl   String
+  downloads MaterialDownload[]
+  uploadedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([resourceId])
+  @@map("materials")
+}
+
+model MaterialDownload {
+  id        String   @id @default(cuid())
+  tenantId  String
+  materialId String
+  material  Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  userId    String
+  downloadedAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([materialId])
+  @@index([userId])
+  @@map("material_downloads")
+}
+
+model License {
+  id        String   @id @default(cuid())
+  tenantId  String
+  resourceId String
+  resource  Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  type      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([resourceId])
+  @@index([expiresAt])
+  @@map("licenses")
+}
