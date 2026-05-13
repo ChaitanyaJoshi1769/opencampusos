@@ -6,28 +6,39 @@ A production-grade, open-source alternative to Ellucian Banner, Colleague, Workd
 
 ## ✨ Features
 
-### Phase 1 MVP
-- **Student Information System (SIS)** - Complete student lifecycle management
-- **Admissions CRM** - Lead management, applications, admissions workflows
-- **Authentication** - Keycloak with OAuth2, SAML, CAS support
-- **Student Portal** - Registration, grades, transcripts
-- **Faculty Portal** - Grading, roster management
-- **AI Copilot** - Semantic search, natural language querying
-- **REST & GraphQL APIs** - Comprehensive API coverage
-- **Analytics Dashboard** - Real-time KPIs and metrics
+### ✅ Implemented Services
 
-### Phase 2
-- Financial aid management
-- HR & payroll
-- ERP & financial accounting
+#### Core Services
+- **SIS (Student Information System)** - Student lifecycle, enrollments, transcripts, GPA tracking
+- **Admissions** - Applicant management, applications, admissions workflows, conversion tracking
+- **Financial Aid** - Student accounts, charges, payments, aid awards, disbursement tracking
+- **HR (Human Resources)** - Faculty management, employee records, department organization
+- **Analytics** - Institution dashboards, performance metrics, financial reporting, analytics foundation
+
+#### Support Services
+- **API Gateway** - Service routing, authentication, rate limiting, request/response transformation
+- **Database Layer** - Prisma ORM, multi-tenant isolation via Row-Level Security, audit logging
+- **Authentication** - Keycloak integration, OAuth2, JWT, RBAC support
+
+#### Frontend Applications
+- **Student Portal** - Dashboard, course enrollment, grade viewing, transcript access
+- **Admin Dashboard** - Institution management, user management, settings
+- **Faculty Portal** - Class rosters, grading interface, student management (scaffold)
+
+### 🚀 Phase 2 (In Development)
 - Workflow automation engine
+- ERP & financial accounting
+- Advanced payroll system
 - Mobile applications (React Native)
+- LMS Hub integration
+- AI Copilot enhancement
 
-### Phase 3
-- Advanced AI copilots
+### 📋 Phase 3 (Planned)
+- Advanced AI analytics
 - Developer marketplace
 - Plugin ecosystem
 - Enterprise automation
+- Mobile apps (complete)
 
 ## 🏗️ Architecture
 
@@ -117,21 +128,43 @@ pnpm dev
 This starts all services and apps in development mode:
 - API Gateway (localhost:3001)
 - SIS Service (localhost:3002)
+- HR Service (localhost:3002)
+- Analytics Service (localhost:3003)
 - Admissions Service (localhost:3003)
-- Next.js Dashboard (localhost:3000)
+- Financial Aid Service (localhost:3004)
+- Student Portal (localhost:3010)
+- Admin Dashboard (localhost:3000)
 
-### Access Points
+### Service Architecture
+
+| Service | Port | Purpose | Status |
+|---------|------|---------|--------|
+| API Gateway | 3001 | Route requests to backend services | ✅ Active |
+| SIS Service | 3002 | Student enrollment, courses, transcripts | ✅ Complete |
+| HR Service | 3002 | Faculty, employees, payroll foundation | ✅ Complete |
+| Analytics Service | 3003 | Dashboards, reporting, metrics | ✅ Complete |
+| Admissions Service | 3003 | Applicants, applications, admissions | ✅ Complete |
+| Financial Aid Service | 3004 | Accounts, charges, payments, awards | ✅ Complete |
+
+### Application Access Points
+
+| Application | URL | Purpose |
+|-------------|-----|---------|
+| Student Portal | http://localhost:3010 | Student self-service (dashboard, courses, grades) |
+| Admin Dashboard | http://localhost:3000 | Institution management and analytics |
+| API Documentation | http://localhost:3001/api | OpenAPI/Swagger docs |
+
+### Infrastructure Access Points
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Admin Dashboard | http://localhost:3000 | admin@testuniversity.edu / admin |
-| Student Portal | http://localhost:3010 | student@testuniversity.edu / student |
-| Faculty Portal | http://localhost:3011 | faculty@testuniversity.edu / faculty |
-| Keycloak | http://localhost:8080 | admin / admin |
-| Grafana | http://localhost:3000 | admin / admin |
-| Prometheus | http://localhost:9090 | - |
-| Jaeger | http://localhost:16686 | - |
+| Keycloak (Auth) | http://localhost:8080 | admin / admin |
+| Grafana (Monitoring) | http://localhost:3000 | admin / admin |
+| Prometheus (Metrics) | http://localhost:9090 | - |
+| Jaeger (Tracing) | http://localhost:16686 | - |
 | Kafdrop (Kafka UI) | http://localhost:9000 | - |
+| Postgres (Database) | localhost:5432 | postgres / postgres |
+| Adminer (DB UI) | http://localhost:8081 | - |
 
 ## 📚 Documentation
 
@@ -143,17 +176,68 @@ This starts all services and apps in development mode:
 
 ## 🛠️ Development Commands
 
+### Service Development
+
 ```bash
 # Install dependencies
 pnpm install
 
-# Start development environment
+# Start all services in watch mode
 pnpm dev
 
-# Build for production
+# Build all services for production
 pnpm build
 
-# Run tests
+# Build only backend services
+pnpm build:services
+
+# Build only frontend apps
+pnpm build:apps
+
+# Run tests across all packages
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run specific service
+pnpm --filter @opencampusos/sis-service dev
+pnpm --filter @opencampusos/hr-service dev
+pnpm --filter @opencampusos/financial-aid-service dev
+pnpm --filter @opencampusos/admissions-service dev
+pnpm --filter @opencampusos/analytics-service dev
+```
+
+### Database
+
+```bash
+# Run database migrations
+pnpm run db:migrate
+
+# Seed database with test data
+pnpm run db:seed
+
+# Open Prisma Studio (visual database editor)
+pnpm run db:studio
+
+# Generate Prisma client
+pnpm --filter @opencampus/database run prisma:generate
+```
+
+### Docker & Infrastructure
+
+```bash
+# Start all infrastructure services
+docker-compose up -d
+
+# View service logs
+docker-compose logs -f
+
+# Stop all services
+docker-compose down
+
+# Reset all services
+docker-compose down -v
 pnpm test
 
 # Run tests in watch mode
