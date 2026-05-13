@@ -1,0 +1,81 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Room {
+  id            String   @id @default(cuid())
+  tenantId      String
+  building      String
+  roomNumber    String
+  capacity      Int
+  features      String[] @default([])
+  type          String   @default("classroom")
+  floor         Int?
+  equipment     Equipment[]
+  reservations  Reservation[]
+  utilization   RoomUtilization[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([tenantId, building, roomNumber])
+  @@index([tenantId])
+  @@index([building])
+}
+
+model Reservation {
+  id                String   @id @default(cuid())
+  tenantId          String
+  roomId            String
+  room              Room     @relation(fields: [roomId], references: [id])
+  userId            String
+  organizer         String
+  title             String
+  description       String?
+  startTime         DateTime
+  endTime           DateTime
+  academicTerm      String?
+  status            String   @default("pending")
+  confirmedAt       DateTime?
+  cancellationReason String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([roomId])
+  @@index([userId])
+  @@index([status])
+  @@index([startTime])
+}
+
+model RoomUtilization {
+  id         String   @id @default(cuid())
+  tenantId   String
+  roomId     String
+  room       Room     @relation(fields: [roomId], references: [id])
+  occupancy  Int
+  recordedAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([roomId])
+  @@index([recordedAt])
+}
+
+model Equipment {
+  id       String   @id @default(cuid())
+  tenantId String
+  roomId   String
+  room     Room     @relation(fields: [roomId], references: [id])
+  type     String
+  quantity Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([roomId])
+  @@index([type])
+}
