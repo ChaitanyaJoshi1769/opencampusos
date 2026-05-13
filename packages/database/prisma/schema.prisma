@@ -1,0 +1,579 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// AUTH SCHEMA
+// ============================================================================
+
+model Institution {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String
+  code                 String   @unique
+  type                 String // 'university', 'college', 'online_school'
+  country              String?
+  timezone             String?
+  logoUrl              String?  @db.Text
+  website              String?  @db.Text
+  legalName            String?
+  ein                  String?  @unique // Federal employer ID
+  accreditationStatus  String?
+  createdAt            DateTime @default(now()) @db.Timestamptz()
+  updatedAt            DateTime @updatedAt @db.Timestamptz()
+  deletedAt            DateTime? @db.Timestamptz()
+
+  // Relations
+  users                User[]
+  roles                Role[]
+  students             Student[]
+  programs             Program[]
+  courses              Course[]
+  academicTerms        AcademicTerm[]
+  applicants           Applicant[]
+  applications         Application[]
+  studentAccounts      StudentAccount[]
+  charges              Charge[]
+  payments             Payment[]
+  financialAidAwards   FinancialAidAward[]
+  faculty              Faculty[]
+  employees            Employee[]
+  workflows            Workflow[]
+  enrollments          Enrollment[]
+  sections             CourseSection[]
+  transcripts          Transcript[]
+  auditLogs            AuditLog[]
+
+  @@map("institutions")
+}
+
+model User {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @db.Uuid
+  email            String
+  username         String?
+  firstName        String?
+  lastName         String?
+  phone            String?
+  avatarUrl        String?
+  dateOfBirth      DateTime? @db.Date
+  role             String   @default("user") // 'admin', 'faculty', 'student', 'staff'
+  status           String   @default("active") // 'active', 'inactive', 'suspended'
+  lastLoginAt      DateTime? @db.Timestamptz()
+  mfaEnabled       Boolean  @default(false)
+  isInternal       Boolean  @default(true)
+  externalId       String?  // LDAP/SSO sync
+  keycloakId       String?  @db.Uuid
+  createdAt        DateTime @default(now()) @db.Timestamptz()
+  updatedAt        DateTime @updatedAt @db.Timestamptz()
+  deletedAt        DateTime? @db.Timestamptz()
+
+  // Relations
+  tenant           Institution @relation(fields: [tenantId], references: [id])
+  roles            Role[] @relation("UserRoles")
+  auditLogs        AuditLog[]
+  faculty          Faculty?
+  employee         Employee?
+  instructorSections CourseSection[]
+  workflowsCreated Workflow[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([email])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String
+  description String?
+  permissions Json     @default("{}")
+  isSystem    Boolean  @default(false) // System roles are immutable
+  createdAt   DateTime @default(now()) @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant      Institution @relation(fields: [tenantId], references: [id])
+  users       User[] @relation("UserRoles")
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @db.Uuid
+  entityType  String   // 'user', 'student', 'course', etc.
+  entityId    String   @db.Uuid
+  action      String   // 'create', 'update', 'delete'
+  oldValues   Json?
+  newValues   Json?
+  userId      String?  @db.Uuid
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now()) @db.Timestamptz()
+
+  // Relations
+  tenant      Institution @relation(fields: [tenantId], references: [id])
+  user        User? @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// SIS SCHEMA
+// ============================================================================
+
+model Student {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  userId               String    @unique @db.Uuid
+  studentId            String    // Institutional student ID
+  firstName            String
+  lastName             String
+  email                String
+  phone                String?
+  dateOfBirth          DateTime? @db.Date
+  ssnEncrypted         Bytes?    // Encrypted
+  gender               String?
+  nationality          String?
+  addressLine1         String?
+  addressLine2         String?
+  city                 String?
+  stateProvince        String?
+  postalCode           String?
+  country              String?
+  status               String    @default("active") // 'active', 'suspended', 'graduated', 'withdrawn'
+  admissionDate        DateTime? @db.Date
+  graduationDate       DateTime? @db.Date
+  programId            String?   @db.Uuid
+  classYear            String?   // 'freshman', 'sophomore', 'junior', 'senior'
+  gpa                  Decimal?  @db.Decimal(4, 3)
+  cumulativeCredits    Decimal   @default(0) @db.Decimal(6, 2)
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+  deletedAt            DateTime? @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  program              Program? @relation(fields: [programId], references: [id])
+  enrollments          Enrollment[]
+  transcript           Transcript?
+  studentAccount       StudentAccount?
+  financialAidAwards   FinancialAidAward[]
+  applicant            Applicant?
+
+  @@unique([tenantId, studentId])
+  @@index([tenantId])
+  @@index([email])
+  @@map("students")
+}
+
+model Program {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  code                 String
+  name                 String
+  description          String?
+  degreeLevel          String?   // 'associate', 'bachelor', 'master', 'phd'
+  totalCreditsRequired Decimal?  @db.Decimal(6, 2)
+  expectedDurationMonths Int?
+  schoolId             String?   @db.Uuid
+  departmentId         String?   @db.Uuid
+  status               String    @default("active")
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  students             Student[]
+  applications         Application[]
+
+  @@unique([tenantId, code])
+  @@map("programs")
+}
+
+model Course {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  code                 String    // e.g., 'CS101'
+  title                String
+  description          String?
+  credits              Decimal?  @db.Decimal(3, 1)
+  level                String?   // 'undergraduate', 'graduate'
+  departmentId         String?   @db.Uuid
+  prerequisites        String?   // JSON array of course IDs
+  corequisites         String?
+  maxEnrollment        Int?
+  gradingScale         String?   // 'letter', 'numeric', 'pass_fail'
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  sections             CourseSection[]
+
+  @@unique([tenantId, code])
+  @@map("courses")
+}
+
+model CourseSection {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  courseId             String    @db.Uuid
+  sectionNumber        String
+  termId               String?   @db.Uuid
+  instructorId         String    @db.Uuid
+  location             String?
+  meetingDays          String?   // 'MWF', 'TR', etc.
+  startTime            DateTime? @db.Time
+  endTime              DateTime? @db.Time
+  enrolledCount        Int       @default(0)
+  maxEnrollment        Int?
+  status               String    @default("active")
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  course               Course @relation(fields: [courseId], references: [id])
+  term                 AcademicTerm? @relation(fields: [termId], references: [id])
+  instructor           User @relation(fields: [instructorId], references: [id])
+  enrollments          Enrollment[]
+
+  @@unique([tenantId, courseId, sectionNumber])
+  @@map("course_sections")
+}
+
+model Enrollment {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  studentId            String    @db.Uuid
+  sectionId            String    @db.Uuid
+  enrollmentDate       DateTime  @db.Date
+  status               String    @default("enrolled") // 'enrolled', 'dropped', 'completed', 'audit'
+  grade                String?   // 'A', 'B', 'C', etc.
+  gradePoints          Decimal?  @db.Decimal(4, 3)
+  gradeSubmittedDate   DateTime? @db.Timestamptz()
+  attendancePercentage Decimal?  @db.Decimal(5, 2)
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  student              Student @relation(fields: [studentId], references: [id])
+  section              CourseSection @relation(fields: [sectionId], references: [id])
+
+  @@unique([tenantId, studentId, sectionId])
+  @@index([tenantId, studentId])
+  @@index([sectionId])
+  @@map("enrollments")
+}
+
+model AcademicTerm {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  code                 String    // 'SP2026', 'FA2026'
+  name                 String
+  startDate            DateTime  @db.Date
+  endDate              DateTime  @db.Date
+  status               String    @default("planning") // 'planning', 'active', 'closed'
+  registrationStartDate DateTime? @db.Date
+  registrationEndDate  DateTime? @db.Date
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  sections             CourseSection[]
+
+  @@unique([tenantId, code])
+  @@map("academic_terms")
+}
+
+model Transcript {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  studentId            String    @unique @db.Uuid
+  generatedDate        DateTime  @default(now()) @db.Timestamptz()
+  gpa                  Decimal?  @db.Decimal(4, 3)
+  totalCredits         Decimal?  @db.Decimal(6, 2)
+  honors               String?   // 'cum_laude', 'magna_cum_laude', etc.
+  enrolledCourses      Json?     // Array of enrollment records
+  notes                String?
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  student              Student @relation(fields: [studentId], references: [id])
+
+  @@map("transcripts")
+}
+
+// ============================================================================
+// ADMISSIONS SCHEMA
+// ============================================================================
+
+model Applicant {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  firstName            String
+  lastName             String
+  email                String
+  phone                String?
+  dateOfBirth          DateTime? @db.Date
+  highSchool           String?
+  highSchoolGpa        Decimal?  @db.Decimal(4, 3)
+  testScores           Json?     // SAT, ACT, GRE, etc.
+  status               String    @default("new") // 'new', 'reviewing', 'admitted', 'waitlist', 'rejected'
+  programOfInterestId  String?   @db.Uuid
+  studentId            String?   @unique @db.Uuid
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+  deletedAt            DateTime? @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  student              Student? @relation(fields: [studentId], references: [id])
+  applications         Application[]
+  recommendations      Recommendation[]
+
+  @@index([tenantId, email])
+  @@map("applicants")
+}
+
+model Application {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  applicantId          String    @db.Uuid
+  programId            String    @db.Uuid
+  applicationType      String?   // 'freshman', 'transfer', 'graduate'
+  status               String    @default("submitted")
+  submittedDate        DateTime  @db.Timestamptz()
+  decisionDate         DateTime? @db.Timestamptz()
+  decision             String?   // 'admitted', 'rejected', 'waitlist'
+  aiScore              Decimal?  @db.Decimal(5, 2)
+  documents            Json?     // { 'essay': url, 'transcript': url, ... }
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  applicant            Applicant @relation(fields: [applicantId], references: [id])
+  program              Program @relation(fields: [programId], references: [id])
+  recommendations      Recommendation[]
+
+  @@unique([tenantId, applicantId, programId])
+  @@index([tenantId, status])
+  @@map("applications")
+}
+
+model Recommendation {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  applicationId        String    @db.Uuid
+  applicantId          String    @db.Uuid
+  recommenderName      String
+  recommenderEmail     String?
+  relationship         String?
+  submittedDate        DateTime? @db.Timestamptz()
+  text                 Bytes?    // Encrypted recommendation letter
+  score                Decimal?  @db.Decimal(5, 2)
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  application          Application @relation(fields: [applicationId], references: [id])
+  applicant            Applicant @relation(fields: [applicantId], references: [id])
+
+  @@map("recommendations")
+}
+
+// ============================================================================
+// FINANCE SCHEMA
+// ============================================================================
+
+model StudentAccount {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  studentId            String    @unique @db.Uuid
+  accountNumber        String    @unique
+  balance              Decimal   @default(0) @db.Decimal(12, 2)
+  status               String    @default("active")
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  student              Student @relation(fields: [studentId], references: [id])
+  charges              Charge[]
+  payments             Payment[]
+
+  @@unique([tenantId, studentId])
+  @@map("student_accounts")
+}
+
+model Charge {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  studentAccountId     String    @db.Uuid
+  chargeType           String    // 'tuition', 'fees', 'housing', 'other'
+  termId               String?   @db.Uuid
+  amount               Decimal   @db.Decimal(12, 2)
+  chargeDate           DateTime  @db.Date
+  dueDate              DateTime  @db.Date
+  description          String?
+  status               String    @default("open") // 'open', 'paid', 'outstanding'
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  account              StudentAccount @relation(fields: [studentAccountId], references: [id])
+  term                 AcademicTerm? @relation(fields: [termId], references: [id])
+
+  @@index([tenantId, dueDate, status])
+  @@map("charges")
+}
+
+model Payment {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  studentAccountId     String    @db.Uuid
+  amount               Decimal   @db.Decimal(12, 2)
+  paymentDate          DateTime  @db.Date
+  paymentMethod        String?   // 'credit_card', 'ach', 'check', 'cash'
+  transactionId        String?   @unique
+  status               String    @default("completed") // 'pending', 'completed', 'failed'
+  notes                String?
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  account              StudentAccount @relation(fields: [studentAccountId], references: [id])
+
+  @@map("payments")
+}
+
+model FinancialAidAward {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  studentId            String    @db.Uuid
+  academicYear         String
+  aidType              String    // 'grant', 'scholarship', 'loan', 'work_study'
+  amount               Decimal   @db.Decimal(12, 2)
+  termId               String?   @db.Uuid
+  status               String    @default("awarded")
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  student              Student @relation(fields: [studentId], references: [id])
+  term                 AcademicTerm? @relation(fields: [termId], references: [id])
+
+  @@map("financial_aid_awards")
+}
+
+// ============================================================================
+// HR SCHEMA
+// ============================================================================
+
+model Faculty {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  userId               String    @unique @db.Uuid
+  employeeId           String
+  title                String?   // 'Professor', 'Associate Professor', etc.
+  departmentId         String?   @db.Uuid
+  officeLocation       String?
+  phoneExtension       String?
+  specializations      String[]
+  hireDate             DateTime  @db.Date
+  status               String    @default("active")
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  user                 User @relation(fields: [userId], references: [id])
+
+  @@unique([tenantId, employeeId])
+  @@map("faculty")
+}
+
+model Employee {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  userId               String    @unique @db.Uuid
+  employeeId           String
+  jobTitle             String
+  departmentId         String?   @db.Uuid
+  hireDate             DateTime  @db.Date
+  employmentType       String    // 'full_time', 'part_time', 'contract'
+  salary               Decimal?  @db.Decimal(12, 2)
+  status               String    @default("active")
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  user                 User @relation(fields: [userId], references: [id])
+
+  @@unique([tenantId, employeeId])
+  @@map("employees")
+}
+
+// ============================================================================
+// WORKFLOW SCHEMA
+// ============================================================================
+
+model Workflow {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  name                 String
+  description          String?
+  triggerType          String    // 'event', 'schedule', 'manual'
+  triggerConfig        Json?
+  steps                Json      // Array of workflow steps
+  enabled              Boolean   @default(true)
+  createdById          String    @db.Uuid
+  createdAt            DateTime  @default(now()) @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  createdBy            User @relation(fields: [createdById], references: [id])
+  executions           WorkflowExecution[]
+
+  @@map("workflows")
+}
+
+model WorkflowExecution {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @db.Uuid
+  workflowId           String    @db.Uuid
+  entityType           String?
+  entityId             String?   @db.Uuid
+  status               String    @default("pending") // 'pending', 'running', 'completed', 'failed'
+  startedAt            DateTime  @default(now()) @db.Timestamptz()
+  completedAt          DateTime? @db.Timestamptz()
+  output               Json?
+  errorMessage         String?
+
+  // Relations
+  tenant               Institution @relation(fields: [tenantId], references: [id])
+  workflow             Workflow @relation(fields: [workflowId], references: [id])
+
+  @@index([tenantId, workflowId])
+  @@index([status])
+  @@map("workflow_executions")
+}

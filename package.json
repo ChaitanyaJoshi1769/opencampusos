@@ -1,0 +1,48 @@
+{
+  "name": "opencampus-os",
+  "version": "0.1.0",
+  "description": "The modern AI-native operating system for higher education",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "pnpm --recursive --parallel dev",
+    "build": "pnpm --recursive --parallel build",
+    "build:services": "pnpm --filter './services/**' build",
+    "build:apps": "pnpm --filter './apps/**' build",
+    "test": "pnpm --recursive test",
+    "test:watch": "pnpm --recursive test -- --watch",
+    "lint": "pnpm --recursive lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "type-check": "pnpm --recursive type-check",
+    "db:migrate": "pnpm --filter @opencampus/database migrate:deploy",
+    "db:seed": "pnpm --filter @opencampus/database seed",
+    "db:studio": "pnpm --filter @opencampus/database studio",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "k8s:deploy": "kubectl apply -f k8s/",
+    "k8s:rollout": "kubectl rollout status deployment/opencampus-api",
+    "start": "pnpm run docker:up && pnpm dev"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.3.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "typescript": "^5.3.0"
+    },
+    "peerDependencyRules": {
+      "ignoreMissing": ["react", "react-dom"]
+    }
+  }
+}

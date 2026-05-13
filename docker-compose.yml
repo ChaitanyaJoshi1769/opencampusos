@@ -1,0 +1,299 @@
+version: '3.9'
+
+services:
+  # ============================================================================
+  # PostgreSQL Database
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: opencampus-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: opencampus
+      POSTGRES_PASSWORD: opencampus
+      POSTGRES_DB: opencampus
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=en_US.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/00-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opencampus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Redis Cache
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: opencampus-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Kafka Message Broker
+  # ============================================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: opencampus-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - opencampus-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: opencampus-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions.sh", "--bootstrap-server", "kafka:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Kafdrop - Kafka UI
+  # ============================================================================
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: opencampus-kafdrop
+    depends_on:
+      - kafka
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: kafka:29092
+      JVM_OPTS: "-Xms32M -Xmx64M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # ClickHouse - Analytics Database
+  # ============================================================================
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: opencampus-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: opencampus
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Qdrant - Vector Database
+  # ============================================================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: opencampus-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-test-key}
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Elasticsearch / OpenSearch - Search
+  # ============================================================================
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opencampus-opensearch
+    environment:
+      - cluster.name=opencampus-cluster
+      - node.name=opencampus-node
+      - discovery.seed_hosts=opensearch
+      - cluster.initial_master_nodes=opencampus-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=OpenCampus@123
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Keycloak - Authentication
+  # ============================================================================
+  keycloak-postgres:
+    image: postgres:16-alpine
+    container_name: opencampus-keycloak-db
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+      POSTGRES_DB: keycloak
+    volumes:
+      - keycloak_postgres_data:/var/lib/postgresql/data
+    networks:
+      - opencampus-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: opencampus-keycloak
+    depends_on:
+      - keycloak-postgres
+    ports:
+      - "8080:8080"
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_PROXY: edge
+    command: start-dev
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Prometheus - Metrics
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: opencampus-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Grafana - Metrics Visualization
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: opencampus-grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+      GF_INSTALL_PLUGINS: 'grafana-piechart-panel'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Loki - Log Aggregation
+  # ============================================================================
+  loki:
+    image: grafana/loki:latest
+    container_name: opencampus-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./infrastructure/loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - opencampus-network
+
+  # ============================================================================
+  # Jaeger - Distributed Tracing
+  # ============================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: opencampus-jaeger
+    ports:
+      - "16686:16686"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16687:16687"
+      - "14268:14268"
+      - "14269:14269"
+    networks:
+      - opencampus-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local
+  clickhouse_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  opensearch_data:
+    driver: local
+  keycloak_postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+
+networks:
+  opencampus-network:
+    driver: bridge
