@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AdvisingPlan {
+  id          String   @id @default(cuid())
+  tenantId    String
+  studentId   String
+  degreeId    String?
+  status      String   @default("draft")
+  advisorId   String?
+  courses     String[]
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([status])
+  @@map("advising_plans")
+}
+
+model Alert {
+  id          String   @id @default(cuid())
+  tenantId    String
+  studentId   String
+  type        String
+  severity    String
+  message     String
+  status      String   @default("active")
+  dismissedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([status])
+  @@map("alerts")
+}
+
+model Intervention {
+  id          String   @id @default(cuid())
+  tenantId    String
+  studentId   String
+  type        String
+  description String?
+  status      String   @default("active")
+  outcome     String?
+  startedAt   DateTime
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([status])
+  @@map("interventions")
+}
